@@ -2,6 +2,44 @@
 
 **Define your coding agents once. Spawn them natively in any harness.**
 
+## Install
+
+Needs [Bun](https://bun.sh).
+
+```sh
+bun install -g github:noueii/agentc
+agentc --version
+```
+
+To update, run the same `bun install -g` command again. To remove: `bun remove -g agentc`.
+
+If `agentc` isn't found, Bun's global bin folder isn't on your PATH. Add it, e.g. `echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.zshrc`, and open a new shell.
+
+<details>
+<summary>Without a global install: build a standalone binary</summary>
+
+```sh
+git clone https://github.com/noueii/agentc.git
+cd agentc
+bun run build                          # dist/agentc, runs without Bun
+mkdir -p ~/.local/bin
+cp dist/agentc ~/.local/bin/           # or anywhere on your PATH
+```
+
+</details>
+
+## Use
+
+```sh
+mkdir -p ~/my-agents/agents                     # your agents repo (one file per agent)
+agentc validate --source ~/my-agents
+agentc install  --source ~/my-agents            # installs into every harness found on this machine
+```
+
+Already have Claude Code agents? `agentc import --harness claude --source ~/my-agents`, or ask your agent to use the `agentc-import` skill, which `agentc install` sets up. See [Agent spec](#agent-spec) for the file format and [`examples/`](examples) for two working agents.
+
+## What it is
+
 agentc is a small compiler for agent definitions. You write each agent once, as a markdown file with frontmatter. agentc translates it into the native subagent format of each supported harness and installs it there. Spawning then happens through the harness's own subagent mechanism, so the harness itself enforces the agent's tool and skill restrictions. agentc never runs agents itself.
 
 > **Status:** v0 implemented, **not yet verified against the real harnesses.** The adapters follow each harness's documented or best-known format, but no contract test has run against a real Claude Code, OpenCode, pi or omp yet. Until one does, `install` prints an UNVERIFIED warning per harness. See [Verification status](#verification-status).
