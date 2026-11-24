@@ -4,20 +4,29 @@
 
 ## Install
 
-Needs [Bun](https://bun.sh) to build. There are no prebuilt binaries yet.
+Needs [Bun](https://bun.sh).
+
+```sh
+bun install -g github:noueii/agentc
+agentc --version
+```
+
+To update, run the same `bun install -g` command again. To remove: `bun remove -g agentc`.
+
+If `agentc` isn't found, Bun's global bin folder isn't on your PATH. Add it, e.g. `echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.zshrc`, and open a new shell.
+
+<details>
+<summary>Without a global install: build a standalone binary</summary>
 
 ```sh
 git clone https://github.com/noueii/agentc.git
 cd agentc
-bun run build                          # builds a standalone binary: dist/agentc
+bun run build                          # dist/agentc, runs without Bun
 mkdir -p ~/.local/bin
 cp dist/agentc ~/.local/bin/           # or anywhere on your PATH
-agentc --version
 ```
 
-If `agentc` isn't found, add `~/.local/bin` to your PATH, e.g. `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc` and open a new shell.
-
-To update: `git pull && bun run build && cp dist/agentc ~/.local/bin/`.
+</details>
 
 ## Use
 
