@@ -12,11 +12,14 @@ import {
 } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import type { Adapter } from "./adapters";
+import { BUILTIN_SKILLS, builtinSkillsRoot, writeBuiltinSkills } from "./builtin";
 import type { Source } from "./spec";
 
 export interface InstallOptions {
   dryRun?: boolean;
   skipPreflight?: boolean;
+  /** Install agentc's own bundled skills (e.g. agentc-import). Default true. */
+  builtinSkills?: boolean;
 }
 
 export interface HarnessReport {
@@ -31,6 +34,8 @@ export interface HarnessReport {
   pruned: string[];
   /** Destination paths agentc refused to touch because it doesn't own them. */
   conflicts: string[];
+  /** Built-in skills now linked into this harness. */
+  builtins: string[];
 }
 
 export function buildRoot(source: Source, adapter: Adapter): string {
@@ -42,8 +47,9 @@ export function buildRoot(source: Source, adapter: Adapter): string {
  * symlink the results into the harness's user-level folders.
  *
  * Ownership rule: agentc only ever touches symlinks that point into its own
- * build folder for this source and harness. Real files and foreign links are
- * reported as conflicts and left alone.
+ * build folder for this source and harness, or into ~/.agentc/skills for its
+ * built-in skills. Real files and foreign links are reported as conflicts and
+ * left alone.
  */
 export function installHarness(source: Source, adapter: Adapter, opts: InstallOptions = {}): HarnessReport {
   const report: HarnessReport = {
@@ -55,6 +61,7 @@ export function installHarness(source: Source, adapter: Adapter, opts: InstallOp
     unchanged: [],
     pruned: [],
     conflicts: [],
+    builtins: [],
   };
 
   if (!adapter.verified)
@@ -108,14 +115,28 @@ export function installHarness(source: Source, adapter: Adapter, opts: InstallOp
     for (const entry of readdirSync(from)) linkEntry(join(from, entry), join(to, entry), build, report);
   }
 
-  // 3. Prune links into our build folder whose target no longer exists (deleted agents/skills).
+  // 3. Built-in skills: written to ~/.agentc/skills and linked like everything else.
+  const builtinRoot = builtinSkillsRoot();
+  const wantBuiltins = opts.builtinSkills !== false;
+  if (wantBuiltins) {
+    writeBuiltinSkills();
+    for (const skill of BUILTIN_SKILLS) {
+      const conflictsBefore = report.conflicts.length;
+      linkEntry(join(builtinRoot, skill.name), join(root, adapter.managedDirs.skills, skill.name), builtinRoot, report);
+      if (report.conflicts.length === conflictsBefore) report.builtins.push(skill.name);
+    }
+  }
+
+  // 4. Prune: links into our folders whose target is gone (deleted agents/skills, retired
+  //    built-ins), plus every built-in link when built-ins were opted out.
   for (const dir of [adapter.managedDirs.agents, adapter.managedDirs.skills]) {
     const to = join(root, dir);
     if (!existsSync(to)) continue;
     for (const entry of readdirSync(to)) {
       const dest = join(to, entry);
       const target = ownedTarget(dest, build);
-      if (target && !existsSync(target)) {
+      const builtinTarget = ownedTarget(dest, builtinRoot);
+      if ((target && !existsSync(target)) || (builtinTarget && (!wantBuiltins || !existsSync(builtinTarget)))) {
         unlinkSync(dest);
         report.pruned.push(dest);
       }
@@ -125,8 +146,8 @@ export function installHarness(source: Source, adapter: Adapter, opts: InstallOp
   return report;
 }
 
-/** If `path` is a symlink into `build`, return its absolute target; otherwise null. */
-function ownedTarget(path: string, build: string): string | null {
+/** If `path` is a symlink into `owner`, return its absolute target; otherwise null. */
+function ownedTarget(path: string, owner: string): string | null {
   let st;
   try {
     st = lstatSync(path);
@@ -135,10 +156,10 @@ function ownedTarget(path: string, build: string): string | null {
   }
   if (!st.isSymbolicLink()) return null;
   const target = resolve(dirname(path), readlinkSync(path));
-  return target.startsWith(build + sep) ? target : null;
+  return target.startsWith(owner + sep) ? target : null;
 }
 
-function linkEntry(target: string, dest: string, build: string, report: HarnessReport) {
+function linkEntry(target: string, dest: string, owner: string, report: HarnessReport) {
   let st;
   try {
     st = lstatSync(dest);
@@ -147,7 +168,7 @@ function linkEntry(target: string, dest: string, build: string, report: HarnessR
   }
 
   if (st) {
-    const owned = ownedTarget(dest, build);
+    const owned = ownedTarget(dest, owner);
     if (!owned) {
       report.conflicts.push(dest);
       return;

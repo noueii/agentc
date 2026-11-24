@@ -11,7 +11,7 @@ const HELP = `agentc ${pkg.version}: define coding agents once, install them nat
 
 Usage:
   agentc validate [--source <dir>]
-  agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight]
+  agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight] [--no-builtin-skills]
   agentc import   --harness <name> [--source <dir>] [--from <dir>] [--force] [--json]
 
 Options:
@@ -20,6 +20,7 @@ Options:
                       Default: every harness detected on this machine.
   --dry-run           Compile into the build folder but don't touch harness folders.
   --skip-preflight    Skip harness checks (e.g. pi's subagent extension).
+  --no-builtin-skills Don't install agentc's bundled skills (agentc-import); removes them if present.
   --from <dir>        import: folder of native agents to convert. Default: the harness's user-level agents folder.
   --force             import: overwrite agents that already exist in the source repo.
   --json              import: print the report as JSON.
@@ -33,6 +34,7 @@ interface Args {
   harnesses: Harness[];
   dryRun: boolean;
   skipPreflight: boolean;
+  builtinSkills: boolean;
   from?: string;
   force: boolean;
   json: boolean;
@@ -44,7 +46,7 @@ function fail(msg: string): never {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { source: ".", harnesses: [], dryRun: false, skipPreflight: false, force: false, json: false };
+  const args: Args = { source: ".", harnesses: [], dryRun: false, skipPreflight: false, builtinSkills: true, force: false, json: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     const value = () => argv[++i] ?? fail(`${a} needs a value`);
@@ -71,6 +73,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--skip-preflight":
         args.skipPreflight = true;
+        break;
+      case "--no-builtin-skills":
+        args.builtinSkills = false;
         break;
       case "--from":
         args.from = value();
@@ -126,6 +131,7 @@ function printReport(r: HarnessReport, dryRun: boolean) {
     return;
   }
   for (const p of r.pruned) console.log(`  - removed ${p}`);
+  if (r.builtins.length) console.log(`  + built-in skill(s): ${r.builtins.join(", ")}`);
   console.log(
     `  ✓ ${r.installed.length} agent(s) installed (${r.linked.length} linked, ${r.unchanged.length} unchanged, ${r.pruned.length} removed)`,
   );
@@ -147,7 +153,11 @@ function cmdInstall(args: Args): number {
 
   let failed = false;
   for (const h of harnesses) {
-    const report = installHarness(source, ADAPTERS[h], { dryRun: args.dryRun, skipPreflight: args.skipPreflight });
+    const report = installHarness(source, ADAPTERS[h], {
+      dryRun: args.dryRun,
+      skipPreflight: args.skipPreflight,
+      builtinSkills: args.builtinSkills,
+    });
     printReport(report, args.dryRun);
     if (report.fatal || report.skipped.length || report.conflicts.length) failed = true;
   }

@@ -18,6 +18,10 @@ agentc defines each agent once (`agents/<name>.md` in the user's agents repo) an
 
 ## Steps
 
+### 0. Check agentc is available
+
+Run `agentc --version`. If the command isn't found, stop and tell the user agentc isn't on their PATH: they need to install the agentc binary (or add it to PATH) before importing. Don't try to install it yourself.
+
 ### 1. Find the agents repo
 
 Ask which folder is the user's agentc agents repo (it holds `agents/` and `skills/`). If they don't have one, offer to create one, e.g. `~/my-agents`, and `git init` it. Run every command below with `--source <that folder>`.
