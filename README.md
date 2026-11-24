@@ -87,6 +87,7 @@ bun run src/cli.ts install --source examples --dry-run
 ```
 agentc validate [--source <dir>]
 agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight]
+agentc import   --harness <name> [--source <dir>] [--from <dir>] [--force] [--json]
 ```
 
 | Option | Meaning |
@@ -99,6 +100,24 @@ agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip
 Exit codes: `0` everything installed, `1` something was refused (invalid spec, strict-mode refusal, conflict, failed preflight), `2` usage error.
 
 Tool vocabulary for `tools:`: `read`, `write`, `edit`, `grep`, `glob`, `list`, `webfetch`, `websearch`, `todo`, `task`. There is no `bash`.
+
+## Importing existing agents
+
+Already have agents in a harness? Convert them instead of rewriting them:
+
+```sh
+agentc import --harness claude --source ~/my-agents
+```
+
+`import` reads the harness's user-level agents (`--from` to point elsewhere), writes agentc specs into the repo, and copies the skills they reference. It never modifies the originals. Only Claude Code is supported for now.
+
+It converts what it can and marks the rest **NEEDS REVIEW** at the top of the spec:
+
+- **No tools list.** The agent inherited every tool. It's imported with an empty list, so `validate` fails until someone picks an allowlist.
+- **Bash or MCP tools.** Dropped, because agentc denies both. Decide whether the agent still works without them, or should stay a native agent outside agentc.
+- **Fields agentc doesn't carry** (e.g. `permissionMode`, `hooks`).
+
+The [`agentc-import` skill](skills/agentc-import/SKILL.md) walks through those decisions with you: it runs the import, proposes minimal tool lists, handles bash and MCP cases, validates, moves the originals out of the way (only with your yes), and installs. To use it, link it into your harness's skills folder, e.g. `ln -s "$PWD/skills/agentc-import" ~/.claude/skills/agentc-import`, then ask your agent to import your agents.
 
 ## What each adapter writes
 
@@ -130,7 +149,7 @@ bun run build       # standalone binary for this machine: dist/agentc
 bun run build:all   # binaries for macOS, Linux and Windows
 ```
 
-Code layout: `src/spec.ts` (parse and validate), `src/adapters/*` (one file per harness), `src/install.ts` (build folder, symlinks, pruning), `src/cli.ts`.
+Code layout: `src/spec.ts` (parse and validate), `src/adapters/*` (one file per harness), `src/install.ts` (build folder, symlinks, pruning), `src/import.ts` (native agents to specs), `src/cli.ts`.
 
 ## Enforcement
 
