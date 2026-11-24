@@ -86,7 +86,7 @@ bun run src/cli.ts install --source examples --dry-run
 
 ```
 agentc validate [--source <dir>]
-agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight]
+agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight] [--no-builtin-skills]
 agentc import   --harness <name> [--source <dir>] [--from <dir>] [--force] [--json]
 ```
 
@@ -96,6 +96,7 @@ agentc import   --harness <name> [--source <dir>] [--from <dir>] [--force] [--js
 | `--harness` | `claude`, `opencode`, `pi`, `omp`. Repeatable or comma-separated. Default: every harness detected on this machine |
 | `--dry-run` | Compile into the build folder, don't touch harness folders |
 | `--skip-preflight` | Skip harness checks, e.g. pi's subagent extension |
+| `--no-builtin-skills` | Don't install agentc's bundled skills, and remove them if present |
 
 Exit codes: `0` everything installed, `1` something was refused (invalid spec, strict-mode refusal, conflict, failed preflight), `2` usage error.
 
@@ -117,7 +118,15 @@ It converts what it can and marks the rest **NEEDS REVIEW** at the top of the sp
 - **Bash or MCP tools.** Dropped, because agentc denies both. Decide whether the agent still works without them, or should stay a native agent outside agentc.
 - **Fields agentc doesn't carry** (e.g. `permissionMode`, `hooks`).
 
-The [`agentc-import` skill](skills/agentc-import/SKILL.md) walks through those decisions with you: it runs the import, proposes minimal tool lists, handles bash and MCP cases, validates, moves the originals out of the way (only with your yes), and installs. To use it, link it into your harness's skills folder, e.g. `ln -s "$PWD/skills/agentc-import" ~/.claude/skills/agentc-import`, then ask your agent to import your agents.
+The [`agentc-import` skill](skills/agentc-import/SKILL.md) walks through those decisions with you: it runs the import, proposes minimal tool lists, handles bash and MCP cases, validates, moves the originals out of the way (only with your yes), and installs. It's bundled with agentc (see below), so after any `agentc install` you can just ask your agent to import your agents.
+
+## Built-in skills
+
+agentc ships its own skills inside the binary, so they always match the CLI version they describe. Currently there's one: `agentc-import`.
+
+`agentc install` writes them to `~/.agentc/skills/` (or `$AGENTC_HOME/skills/`) and links them into every harness it installs for, under the same ownership rule as your agents. If you already have a skill with the same name, it's reported as a conflict and left alone. Pass `--no-builtin-skills` to skip them; that also removes links from earlier installs.
+
+The skills call `agentc` directly, so the binary needs to be on your PATH.
 
 ## What each adapter writes
 
@@ -149,7 +158,7 @@ bun run build       # standalone binary for this machine: dist/agentc
 bun run build:all   # binaries for macOS, Linux and Windows
 ```
 
-Code layout: `src/spec.ts` (parse and validate), `src/adapters/*` (one file per harness), `src/install.ts` (build folder, symlinks, pruning), `src/import.ts` (native agents to specs), `src/cli.ts`.
+Code layout: `src/spec.ts` (parse and validate), `src/adapters/*` (one file per harness), `src/install.ts` (build folder, symlinks, pruning), `src/import.ts` (native agents to specs), `src/builtin.ts` (bundled skills), `src/cli.ts`.
 
 ## Enforcement
 

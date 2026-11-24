@@ -138,7 +138,7 @@ describe("install", () => {
 
     const second = installHarness(load().source, ADAPTERS.claude);
     expect(second.linked).toEqual([]);
-    expect(second.unchanged.length).toBe(2);
+    expect(second.unchanged.length).toBe(3); // agent, its skill, built-in agentc-import
   });
 
   test("removes agents deleted from the source", () => {
