@@ -4,7 +4,7 @@
 
 agentc is a small compiler for agent definitions. You write each agent once, as a markdown file with frontmatter. agentc translates it into the native subagent format of each supported harness and installs it there. Spawning then happens through the harness's own subagent mechanism, so the harness itself enforces the agent's tool and skill restrictions. agentc never runs agents itself.
 
-> **Status:** design phase (v0). Nothing is implemented yet. This README describes what v0 will be.
+> **Status:** v0 implemented, **not yet verified against the real harnesses.** The adapters follow each harness's documented or best-known format, but no contract test has run against a real Claude Code, OpenCode, pi or omp yet. Until one does, `install` prints an UNVERIFIED warning per harness. See [Verification status](#verification-status).
 
 ## Why
 
@@ -72,14 +72,65 @@ model:
 
 There are no model tiers like `fast`/`strong` in v0. Each developer owns their repo, so they write the model IDs they actually have access to.
 
-## CLI (v0)
+## Quick start
+
+```sh
+bun install                                   # dev dependencies (types only; agentc has no runtime deps)
+bun run src/cli.ts validate --source examples
+bun run src/cli.ts install --source examples --dry-run
+```
+
+`examples/` is a small agents repo with a read-only `reviewer` (using a skill) and an `explorer`.
+
+## CLI
 
 ```
-agentc validate                                  # check every agent spec
-agentc install [--harness claude|opencode|pi|omp] [--source <path>]
+agentc validate [--source <dir>]
+agentc install  [--source <dir>] [--harness <name>[,<name>]] [--dry-run] [--skip-preflight]
 ```
 
-`install` without `--harness` installs for every harness detected on the machine.
+| Option | Meaning |
+|---|---|
+| `--source <dir>` | Agents repo containing `agents/` and `skills/`. Default: current directory |
+| `--harness` | `claude`, `opencode`, `pi`, `omp`. Repeatable or comma-separated. Default: every harness detected on this machine |
+| `--dry-run` | Compile into the build folder, don't touch harness folders |
+| `--skip-preflight` | Skip harness checks, e.g. pi's subagent extension |
+
+Exit codes: `0` everything installed, `1` something was refused (invalid spec, strict-mode refusal, conflict, failed preflight), `2` usage error.
+
+Tool vocabulary for `tools:`: `read`, `write`, `edit`, `grep`, `glob`, `list`, `webfetch`, `websearch`, `todo`, `task`. There is no `bash`.
+
+## What each adapter writes
+
+| Harness | Installs to | Restriction |
+|---|---|---|
+| Claude Code | `$CLAUDE_CONFIG_DIR` or `~/.claude`: `agents/<name>.md`, `skills/<skill>/` | Always writes an explicit `tools:` list (an omitted list means "inherit everything"). Adds `Skill` and `skills:` when the agent has skills. `list` maps to `Glob` |
+| OpenCode | `$OPENCODE_CONFIG_DIR`, `$XDG_CONFIG_HOME/opencode` or `~/.config/opencode`: `agents/<name>.md`, `skills/<skill>/` | `mode: subagent`, a `permission:` block with `"*": deny`, an explicit deny for every known built-in, per-skill rules (`skill: {"*": deny, <skill>: allow}`), and the same allowlist in the older `tools:` map. OpenCode grants write and edit together |
+| pi | `$PI_CODING_AGENT_DIR` or `~/.pi/agent`: `agents/<name>.md`, `skills/<skill>/` | `tools:` as pi tool names (`glob` → `find`, `list` → `ls`). Fails preflight unless a subagent extension is in `extensions/` |
+| oh-my-pi | `~/.omp/agent`: `agents/<name>.md`, `skills/<skill>/` | `tools:` for omp's `task` tool. Only tools we're reasonably sure of are mapped (`read`, `write`, `edit`, `grep`, `glob`, `task`); anything else is refused. Model pinning is refused because `task` has no model field |
+
+Skills are installed for every harness, but only OpenCode can stop an agent from using *other* installed skills. Elsewhere this is reported as a warning, not an error.
+
+## Verification status
+
+| Harness | Format | Restrictions proven by contract test |
+|---|---|---|
+| Claude Code | documented | no |
+| OpenCode | documented; `agents/` folder name and MCP coverage of `"*"` unconfirmed | no |
+| pi | reference subagent extension format | no |
+| oh-my-pi | **assumed** (folder, fields and tool names) | no |
+
+Flip an adapter's `verified` flag to `true` only after its contract test passes. The contract tests themselves are the next piece of work: spawn each compiled agent in the real harness and check that an allowed tool works, a forbidden built-in tool and a forbidden MCP tool are blocked, and its skill is available.
+
+## Development
+
+```sh
+bun test            # unit tests (spec validation, compile output, install/prune/conflicts)
+bun run build       # standalone binary for this machine: dist/agentc
+bun run build:all   # binaries for macOS, Linux and Windows
+```
+
+Code layout: `src/spec.ts` (parse and validate), `src/adapters/*` (one file per harness), `src/install.ts` (build folder, symlinks, pruning), `src/cli.ts`.
 
 ## Enforcement
 
@@ -91,7 +142,7 @@ Restrictions are the point of agentc, so it does not trust config alone:
 
 ## Tech
 
-TypeScript on [Bun](https://bun.sh), shipped as standalone binaries built with `bun build --compile`. No runtime needed on developers' machines.
+TypeScript on [Bun](https://bun.sh), with no runtime dependencies (YAML parsing is built into Bun). Shipped as standalone binaries built with `bun build --compile`, so no runtime is needed on developers' machines. The binary embeds the Bun runtime, so it's around 100 MB.
 
 ## Not in v0
 

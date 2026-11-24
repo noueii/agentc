@@ -1,0 +1,19 @@
+{
+  "name": "agentc",
+  "version": "0.1.0",
+  "description": "Define coding agents once, install them natively into Claude Code, OpenCode, pi and oh-my-pi.",
+  "type": "module",
+  "bin": {
+    "agentc": "./src/cli.ts"
+  },
+  "scripts": {
+    "agentc": "bun run src/cli.ts",
+    "test": "bun test",
+    "build": "bun build src/cli.ts --compile --outfile dist/agentc",
+    "build:all": "bun run scripts/build-all.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "license": "MIT"
+}

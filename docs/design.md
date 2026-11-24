@@ -70,7 +70,7 @@ Similar tools are Node/TypeScript, and anything built inside the harnesses later
 ## Architecture
 
 ```
-spec parser + validator (zod)
+spec parser + validator (Bun.YAML, hand-written checks)
         │
      Agent (normalized)
         │
